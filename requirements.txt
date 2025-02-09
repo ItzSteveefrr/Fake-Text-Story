@@ -9,3 +9,4 @@ Werkzeug>=3.0.1
 gunicorn>=21.2.0
 moviepy>=2.0.0.dev2
 setuptools>=69.0.3
+google-api-python-client
