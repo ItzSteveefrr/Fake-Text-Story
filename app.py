@@ -20,6 +20,8 @@ from google.oauth2 import service_account
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaFileUpload
 import json
+from moviepy.editor import *
+from moviepy.video.fx.speedx import speedx
 
 app = Flask(__name__)
 CORS(app)
@@ -524,6 +526,8 @@ def generate_video(messages, header_data):
         else:
             background_extended = background.subclipped(0, current_time)
 
+            background_extended = speedx(background_extended, factor=1/1.75)
+
         final = CompositeVideoClip(
             [background_extended] + video_clips,
             size=background_extended.size
@@ -531,6 +535,8 @@ def generate_video(messages, header_data):
 
         if audio_clips:
             final = final.with_audio(CompositeAudioClip(audio_clips))
+
+            final = speedx(final, factor=1.75)
 
         output_path = "output_video.mp4"
         final.write_videofile(output_path, 
