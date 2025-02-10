@@ -20,8 +20,11 @@ from google.oauth2 import service_account
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaFileUpload
 import json
+<<<<<<< HEAD
 from moviepy.editor import *
 from moviepy.video.fx.speedx import speedx
+=======
+>>>>>>> 45c8b17adbcd96e435e01db0738ce0ff01fe951f
 
 app = Flask(__name__)
 CORS(app)
