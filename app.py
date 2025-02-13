@@ -19,12 +19,9 @@ import requests
 from google.oauth2 import service_account
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaFileUpload
+import subprocess
+from datetime import datetime
 import json
-<<<<<<< HEAD
-from moviepy.editor import *
-from moviepy.video.fx.speedx import speedx
-=======
->>>>>>> 45c8b17adbcd96e435e01db0738ce0ff01fe951f
 
 app = Flask(__name__)
 CORS(app)
@@ -290,14 +287,19 @@ def generate_audio_eleven_labs(text, voice_id, api_key):
         raise Exception(f"ElevenLabs API error: {response.text}")
 
 def get_voice_ids(api_key):
-    """Fetch and map voice IDs from ElevenLabs"""
     try:
         print("\nFetching voices from ElevenLabs...")
         voice_map = {}
         headers = {"xi-api-key": api_key}
         
-        # Initialize Adam's hardcoded voice ID
-        hardcoded_adam_id = 'pNInz6obpgDQGcFmaJgB'
+        # Initialize hardcoded voice IDs
+        hardcoded_voices = {
+            'adam': 'pNInz6obpgDQGcFmaJgB',    # Adam Legacy
+            'antoni': 'ErXwobaYiN019PkySvjV',   # Antoni hardcoded ID
+            'jessica': 'cgSgspJ2msm6clMCkdW9',  # Jessica from your list
+            'brian': 'nPczCjzI2devNBz1zQrb',    # Brian from your list
+            'laura': 'FGY2WhTYpPnrIDTdsKH5'     # Laura from your list
+        }
         
         # Get regular voices
         response = requests.get(
@@ -315,33 +317,31 @@ def get_voice_ids(api_key):
             print(f"Name: {voice['name']}, ID: {voice['voice_id']}")
             name_lower = voice['name'].lower()
             
-            # Search for Adam's voice
-            if 'adam' in name_lower and 'legacy' in name_lower:
+            # Map voices based on their names
+            if 'adam' in name_lower:
                 voice_map['adam'] = voice['voice_id']
-                print(f"Found Adam (Legacy) voice: {voice['name']}")
+                print(f"Found Adam voice: {voice['name']}")
+            elif 'jessica' in name_lower:
+                voice_map['jessica'] = voice['voice_id']
+                print(f"Found Jessica voice: {voice['name']}")
             elif 'brian' in name_lower:
                 voice_map['brian'] = voice['voice_id']
                 print(f"Found Brian voice: {voice['name']}")
-            elif 'natalie' in name_lower:
-                voice_map['natalie'] = voice['voice_id']
-                print(f"Found Natalie voice: {voice['name']}")
             elif 'laura' in name_lower:
                 voice_map['laura'] = voice['voice_id']
                 print(f"Found Laura voice: {voice['name']}")
         
-        # If Adam's voice ID is not found, use the hardcoded ID
-        if 'adam' not in voice_map:
-            voice_map['adam'] = hardcoded_adam_id
-            print(f"Using hardcoded Adam (Legacy) voice ID: {hardcoded_adam_id}")
+        # Use hardcoded IDs for missing voices
+        for voice_name, voice_id in hardcoded_voices.items():
+            if voice_name not in voice_map:
+                voice_map[voice_name] = voice_id
+                print(f"Using hardcoded {voice_name.capitalize()} voice ID: {voice_id}")
         
         print("\nFinal voice map:", voice_map)
         
-        # Verify all required voices are found
-        missing_voices = []
-        required_voices = ['adam', 'brian', 'natalie', 'laura']
-        for voice in required_voices:
-            if voice not in voice_map:
-                missing_voices.append(voice)
+        # Update required voices list
+        required_voices = ['adam', 'antoni', 'jessica', 'brian', 'laura']
+        missing_voices = [voice for voice in required_voices if voice not in voice_map]
         
         if missing_voices:
             all_voices = "\nAll available voices:\n" + "\n".join([f"- {v['name']} ({v['voice_id']})" for v in voices["voices"]])
@@ -371,7 +371,10 @@ def generate_video(messages, header_data):
         # Map 'male'/'female' to specific voices
         gender_to_voice = {
             'male': 'adam',  # Map 'male' to 'adam'
-            'female': 'natalie'  # Map 'female' to 'natalie'
+            'female': 'jessica',  # Map 'female' to 'jessica'
+            'brian': 'brian',
+            'laura': 'laura',
+            'antoni': 'antoni'
         }
             
         # Get selected voice types and map them to specific voices
@@ -393,12 +396,12 @@ def generate_video(messages, header_data):
         
         # Cloudinary video URLs (replace with your actual URLs)
         CLOUDINARY_VIDEOS = {
-            'background': 'https://res.cloudinary.com/dicyxkb4t/video/upload/v1738448713/ejqmkubzg1qdxzkc7fm4.mp4',
-            'background_1': 'https://res.cloudinary.com/dicyxkb4t/video/upload/v1738448707/f1bhluhc6si77uapdawe.mp4',
-            'background_2': 'https://res.cloudinary.com/dicyxkb4t/video/upload/v1738448708/dxo2rlb7kckps0fnfvv4.mp4',
-            'background_3': 'https://res.cloudinary.com/dicyxkb4t/video/upload/v1738448706/pytgss2oi9idgch1xhrw.mp4',
-            'background_4': 'https://res.cloudinary.com/dicyxkb4t/video/upload/v1738448705/y4k8pbdv6gwi06fo3feg.mp4'
-        }
+                'background': 'https://res.cloudinary.com/dokndhglh/video/upload/c_scale,h_1080,q_100/v1739342327/h3mqdaupaop1eprdcld3.mp4',
+                'background_1': 'https://res.cloudinary.com/dokndhglh/video/upload/c_scale,h_1080,q_100/v1739342660/f1bhluhc6si77uapdawe_slowed_oq2v20.mp4',
+                'background_2': 'https://res.cloudinary.com/dokndhglh/video/upload/c_scale,h_1080,q_100/v1739343309/dxo2rlb7kckps0fnfvv4_slowed_mmptbq.mp4',
+                'background_3': 'https://res.cloudinary.com/dokndhglh/video/upload/c_scale,h_1080,q_100/v1739343390/pytgss2oi9idgch1xhrw_slowed_ku8hde.mp4',
+                'background_4': 'https://res.cloudinary.com/dokndhglh/video/upload/c_scale,h_1080,q_100/v1739343443/y4k8pbdv6gwi06fo3feg_slowed_jkbyyz.mp4'
+            }
         
         # Get the selected background video
         selected_bg = header_data.get('backgroundVideo', 'background')
@@ -529,8 +532,6 @@ def generate_video(messages, header_data):
         else:
             background_extended = background.subclipped(0, current_time)
 
-            background_extended = speedx(background_extended, factor=1/1.75)
-
         final = CompositeVideoClip(
             [background_extended] + video_clips,
             size=background_extended.size
@@ -539,17 +540,21 @@ def generate_video(messages, header_data):
         if audio_clips:
             final = final.with_audio(CompositeAudioClip(audio_clips))
 
-            final = speedx(final, factor=1.75)
-
         output_path = "output_video.mp4"
         final.write_videofile(output_path, 
-                            fps=30, 
+                            fps=60,                    # Increased to 60fps for smoothness
                             codec='libx264',
                             audio_codec='aac',
-                            bitrate="8000k",
-                            preset='slower',
+                            bitrate="20000k",          # Increased bitrate for quality
+                            preset='slow',             # 'slow' gives better quality than 'slower'
                             threads=4,
-                            audio_bitrate="192k")
+                            audio_bitrate="320k",      # Higher audio quality
+                            ffmpeg_params=[
+                                '-crf', '17',          # Lower CRF for higher quality (17-18 is very high quality)
+                                '-pix_fmt', 'yuv420p', # Best compatibility
+                                '-profile:v', 'high',  # High profile for better quality
+                                '-movflags', '+faststart'
+                            ])
         
         return output_path
         
@@ -559,9 +564,37 @@ def generate_video(messages, header_data):
         traceback.print_exc()
         raise
 
+def cleanup_temp_files():
+    for file_path in temp_files:
+        try:
+            if os.path.exists(file_path):
+                os.remove(file_path)
+                print(f"Cleaned up temporary file: {file_path}")
+        except Exception as e:
+            print(f"Warning: Error cleaning up {file_path}: {e}")
+
+def log_video_info(video_path):
+    try:
+        size_mb = os.path.getsize(video_path) / (1024 * 1024)
+        print(f"\nVideo Information:")
+        print(f"Path: {video_path}")
+        print(f"Size: {size_mb:.2f} MB")
+        clip = VideoFileClip(video_path)
+        print(f"Duration: {clip.duration:.2f} seconds")
+        print(f"FPS: {clip.fps}")
+        print(f"Size: {clip.size}")
+        clip.close()
+    except Exception as e:
+        print(f"Error logging video info: {e}")
+
 @app.route('/api/generate', methods=['POST'])
 def generate_endpoint():
     try:
+        # Get current timestamp and user info
+        current_time = datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')
+        print(f"Current Date and Time (UTC): {current_time}")
+        print(f"Current User's Login: ItzSteveefr")
+
         data = request.json
         print("Received data:", data)  # Debug log
         messages = data['messages']
@@ -570,11 +603,13 @@ def generate_endpoint():
         voice_settings = data.get('voiceSettings', {})
         if not voice_settings.get('apiKey'):
             return jsonify({
+                'status': 'error',
                 'error': 'ElevenLabs API key is required'
             }), 400
         
         if not voice_settings.get('sender') or not voice_settings.get('receiver'):
             return jsonify({
+                'status': 'error',
                 'error': 'Voice settings must include sender and receiver voice types'
             }), 400
         
@@ -593,93 +628,98 @@ def generate_endpoint():
             'theme': data.get('theme', 'light')
         }
         
+        # Generate the initial video
+        print("\nGenerating initial video...")
         video_path = generate_video(messages, header_data)
-
-        # Generate a unique filename with timestamp
-        file_name = "ouput_video.mp4"
+        log_video_info(video_path)
         
-        # Upload to Google Drive
-        drive_result = upload_to_drive(video_path, file_name)
-        if drive_result:
-            print(f"Video uploaded to Google Drive - Link: {drive_result['link']}")
-            print(f"Video ID: {drive_result['id']}")
-
-        # Send to Discord webhook if URL is provided
-        discord_webhook_url = os.environ.get('DISCORD_WEBHOOK_URL')
-        if discord_webhook_url:
-            try:
-                with open(video_path, 'rb') as video_file:
-                    webhook_data = {
-                        'content': f"New video generated by {header_data['headerName']}"
-                    }
-                    if drive_result:
-                        webhook_data['content'] += f"\nGoogle Drive Link: {drive_result['link']}"
-                    
-                    files = {
-                        'file': ('output_video.mp4', video_file, 'video/mp4')
-                    }
-                    webhook_response = requests.post(
-                        discord_webhook_url,
-                        data=webhook_data,
-                        files=files
-                    )
-                    if webhook_response.status_code != 200:
-                        print(f"Failed to send to Discord webhook: {webhook_response.text}")
-            except Exception as webhook_error:
-                print(f"Error sending to Discord webhook: {str(webhook_error)}")
+        # Upload original video to Google Drive
+        print("\nUploading original video to Google Drive...")
+        drive_result = upload_to_drive(video_path, 'output_video.mp4')
         
-        # Prepare response with both file and Drive link
+        # Initialize response data
         response_data = {
-            'success': True,
-            'message': 'Video generated successfully'
+            'status': 'success',
+            'message': 'Video generated and processed successfully',
+            'original_video_id': drive_result.get('id', ''),
+            'original_video_link': f"https://drive.google.com/file/d/{drive_result.get('id', '')}/view?usp=drivesdk",
+            'spedup_video_id': '',
+            'spedup_video_link': ''
         }
-        
-        if drive_result:
-            response_data.update({
-                'driveLink': drive_result['link'],
-                'driveId': drive_result['id']
-            })
-        
-        # Return the file and additional data
-        response = send_file(video_path, as_attachment=True)
-        response.headers['X-Drive-Link'] = drive_result['link'] if drive_result else ''
-        response.headers['X-Drive-ID'] = drive_result['id'] if drive_result else ''
-        
-        return response
-        
+
+        # Run the speed-up script and handle Discord webhook
+        try:
+            print("\nStarting video speed-up process...")
+            subprocess.run(['python', 'speed_up_video.py'], check=True)
+            
+            if os.path.exists('spedup_outputvideo.mp4'):
+                print("\nUploading sped-up video to Google Drive...")
+                spedup_drive_result = upload_to_drive('spedup_outputvideo.mp4', 'spedup_outputvideo.mp4')
+                
+                response_data.update({
+                    'spedup_video_id': spedup_drive_result.get('id', ''),
+                    'spedup_video_link': f"https://drive.google.com/file/d/{spedup_drive_result.get('id', '')}/view?usp=drivesdk"
+                })
+                
+                print(f"Sped-up video uploaded to Google Drive - Link: {response_data['spedup_video_link']}")
+                print(f"Sped-up Video ID: {response_data['spedup_video_id']}")
+
+                # Handle Discord webhook if URL is provided
+                discord_webhook_url = os.environ.get('DISCORD_WEBHOOK_URL')
+                if discord_webhook_url:
+                    try:
+                        # Send original video
+                        with open(video_path, 'rb') as video_file:
+                            webhook_data = {
+                                'content': f"New video generated by {header_data['headerName']}\nOriginal video"
+                            }
+                            if drive_result:
+                                webhook_data['content'] += f"\nGoogle Drive Link: {drive_result['link']}"
+                            
+                            files = {
+                                'file': ('output_video.mp4', video_file, 'video/mp4')
+                            }
+                            requests.post(discord_webhook_url, data=webhook_data, files=files)
+                        
+                        # Send sped-up video
+                        with open('spedup_outputvideo.mp4', 'rb') as spedup_file:
+                            webhook_data = {
+                                'content': f"Sped-up version (1.75x) of video by {header_data['headerName']}"
+                            }
+                            if spedup_drive_result:
+                                webhook_data['content'] += f"\nGoogle Drive Link: {spedup_drive_result['link']}"
+                            
+                            files = {
+                                'file': ('spedup_outputvideo.mp4', spedup_file, 'video/mp4')
+                            }
+                            requests.post(discord_webhook_url, data=webhook_data, files=files)
+                    except Exception as webhook_error:
+                        print(f"Warning: Error sending to Discord webhook: {str(webhook_error)}")
+                
+                # Clean up temporary files
+                try:
+                    if os.path.exists('output_video.mp4'):
+                        os.remove('output_video.mp4')
+                    if os.path.exists('spedup_outputvideo.mp4'):
+                        os.remove('spedup_outputvideo.mp4')
+                    print("\nTemporary files cleaned up")
+                except Exception as e:
+                    print(f"Warning: Error cleaning up temporary files: {str(e)}")
+                    
+        except Exception as e:
+            print(f"Error in speed-up process: {str(e)}")
+            response_data['message'] = f"Video generated but speed-up failed: {str(e)}"
+
+        print("\nProcess completed successfully!")
+        return jsonify(response_data)
+
     except Exception as e:
         print(f"Error in generate endpoint: {str(e)}")
-        import traceback
         traceback.print_exc()
-        return jsonify({'error': str(e)}), 500
-
-
-        # Send to Discord webhook if URL is provided
-        discord_webhook_url = os.environ.get('DISCORD_WEBHOOK_URL')
-        if discord_webhook_url:
-            try:
-                with open(video_path, 'rb') as video_file:
-                    webhook_data = {
-                        'content': f"New video generated by {header_data['headerName']}"
-                    }
-                    files = {
-                        'file': ('output_video.mp4', video_file, 'video/mp4')
-                    }
-                    webhook_response = requests.post(
-                        discord_webhook_url,
-                        data=webhook_data,
-                        files=files
-                    )
-                    if webhook_response.status_code != 200:
-                        print(f"Failed to send to Discord webhook: {webhook_response.text}")
-            except Exception as webhook_error:
-                print(f"Error sending to Discord webhook: {str(webhook_error)}")
-        
-        return send_file(video_path, as_attachment=True)
-        
-    except Exception as e:
-        print(f"Error in generate endpoint: {str(e)}")
-        return jsonify({'error': str(e)}), 500
+        return jsonify({
+            'status': 'error',
+            'message': str(e)
+        }), 500
 
 @app.route('/api/fetch-voices', methods=['POST'])
 def fetch_voices():

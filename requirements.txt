@@ -7,6 +7,6 @@ selenium>=4.15.2
 webdriver-manager>=4.0.1
 Werkzeug>=3.0.1
 gunicorn>=21.2.0
-moviepy>=2.0.0.dev2
+moviepy==2.1.2
 setuptools>=69.0.3
 google-api-python-client
