@@ -8,36 +8,296 @@
     <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
     <meta http-equiv="Pragma" content="no-cache">
     <meta http-equiv="Expires" content="0">
+    <style>
+        .page-container {
+            display: flex;
+            gap: 20px;
+            padding: 20px;
+        }
+        
+        .clipboard-section {
+            flex: 0 0 300px;
+            background: #f5f5f5;
+            padding: 20px;
+            border-radius: 10px;
+            max-height: 90vh;
+            overflow-y: auto;
+        }
+        
+        .conversation-input {
+            width: 100%;
+            margin-bottom: 10px;
+        }
+        
+        .conversation-input textarea {
+            width: 100%;
+            height: 200px;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            margin-bottom: 10px;
+            font-family: inherit;
+            resize: vertical;
+        }
+        
+        .convert-btn {
+            background: #28a745;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 14px;
+            width: 100%;
+            margin-bottom: 20px;
+        }
+        
+        .convert-btn:hover {
+            background: #218838;
+        }
+        
+        .clipboard-items {
+            border-top: 2px solid #ddd;
+            padding-top: 20px;
+        }
+        
+        .clipboard-item {
+            display: flex;
+            align-items: center;
+            margin-bottom: 10px;
+            gap: 10px;
+        }
+        
+        .clipboard-text {
+            flex: 1;
+            font-size: 14px;
+            line-height: 1.4;
+            padding: 8px;
+            background: white;
+            border-radius: 5px;
+            border: 1px solid #ddd;
+        }
+        
+        .copy-btn {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 5px 10px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 12px;
+            transition: background 0.2s;
+        }
+        
+        .copy-btn:hover {
+            background: #0056b3;
+        }
+        
+        .copy-btn.copied {
+            background: #28a745;
+        }
+        
+        .speaker-name {
+            font-weight: bold;
+            color: #333;
+            margin-bottom: 5px;
+        }
+
+        .image-search-section {
+            flex: 0 0 400px;
+            background: #f5f5f5;
+            padding: 20px;
+            border-radius: 10px;
+            max-height: 90vh;
+            overflow-y: auto;
+            margin-left: 20px;
+        }
+
+        .search-box {
+            width: 100%;
+            margin-bottom: 20px;
+            display: flex;
+            gap: 10px;
+        }
+
+        .search-box input {
+            flex: 1;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            font-size: 14px;
+        }
+
+        .search-box button {
+            padding: 10px 15px;
+            background: #007bff;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+
+        .image-results {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 20px;
+            padding: 10px 5px;
+        }
+
+        .image-result {
+            background: white;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            overflow: hidden;
+        }
+
+        .image-result img {
+            width: 100%;
+            height: 150px;
+            object-fit: cover;
+            display: block;
+        }
+
+        .image-buttons {
+            display: flex;
+            gap: 5px;
+            padding: 8px;
+            background: white;
+        }
+
+        .image-buttons button {
+            flex: 1;
+            padding: 8px;
+            font-size: 12px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            background: #007bff;
+            color: white;
+        }
+
+        .load-more {
+            margin-top: 20px;
+            padding: 10px;
+            background: #28a745;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            width: 100%;
+            display: none;
+            font-size: 14px;
+        }
+
+        .loading-indicator {
+            text-align: center;
+            margin: 15px 0;
+            display: none;
+            color: #666;
+        }
+
+        .header {
+            display: flex;
+            align-items: center;
+            padding: 10px;
+            justify-content: space-between;
+            border-bottom: 1px solid #e5e5e5;
+        }
+
+        .header-left {
+            position: absolute;
+            cursor: move;
+            user-select: none;
+            z-index: 1000;
+        }
+
+        .header-center {
+            flex: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-left: 50px;
+        }
+
+        .header-text {
+            padding: 0 10px;
+            font-weight: 500;
+        }
+
+        .header-right {
+            flex: 0 0 50px;
+            display: flex;
+            align-items: center;
+            justify-content: flex-end;
+            padding-right: 15px;
+        }
+
+        .video-call-icon {
+            width: 36px;
+            height: 36px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: rgb(10, 132, 255);
+            cursor: pointer;
+            background: none;
+            border: none;
+            padding: 0;
+            margin-right: -5px;
+        }
+
+        .video-call-icon svg {
+            width: 26px;
+            height: 26px;
+            stroke: currentColor;
+            fill: none;
+            stroke-width: 2.5;
+            stroke-linecap: round;
+            stroke-miterlimit: 10;
+        }
+
+        .dark-theme .video-call-icon {
+            color: rgb(10, 132, 255);
+        }
+
+        .context-menu {
+            display: none;
+            position: fixed;
+            background: white;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            box-shadow: 2px 2px 5px rgba(0,0,0,0.2);
+            z-index: 1001;
+        }
+
+        .context-menu button {
+            display: block;
+            width: 100%;
+            padding: 8px 12px;
+            border: none;
+            background: none;
+            cursor: pointer;
+            text-align: left;
+            font-size: 14px;
+        }
+
+        .context-menu button:hover {
+            background: #f0f0f0;
+        }
+    </style>
 </head>
 <body>
-    <div class="stars">
-        <div class="star"></div>
-        <div class="star"></div>
-        <div class="star"></div>
-        <div class="star"></div>
-        <div class="star"></div>
-        <div class="star"></div>
-        <div class="star"></div>
-        <div class="star"></div>
-    </div>
     <div class="page-container">
-        <!-- Guide Section -->
-        <div class="guide-section">
-            <h1>Fake Text Story Video Generator</h1>
-            <p>Welcome to GoViral Wizard's Text Story Generator! Create engaging text message videos with realistic conversations.</p>
-            
-            <p>With our generator, you can:</p>
-            <ul>
-                <li>Create messages for both sender and receiver</li>
-                <li>Edit messages freely at any time</li>
-                <li>Add fun sound effects to individual messages</li>
-                <li>Choose from various voice actors for both participants</li>
-                <li>Select your preferred background video style</li>
-            </ul>
-            
-            <p><strong>Important:</strong> To use voice features, you'll need an ElevenLabs account. Enter your API key and ensure you have the "Adam" and "Jessica" voices added to your voice library.</p>
-            
-            <p>Ready to create your viral text story? Start typing your messages and let your creativity flow!</p>
+        <!-- Clipboard Section -->
+        <div class="clipboard-section">
+            <!-- Conversation Input -->
+            <div class="conversation-input">
+                <textarea id="conversationInput" placeholder="Paste your ChatGPT conversation here..."></textarea>
+                <button class="convert-btn" onclick="convertConversation()">Convert Conversation</button>
+            </div>
+            <!-- Clipboard Items -->
+            <div class="clipboard-items" id="clipboardItems">
+            </div>
         </div>
 
         <!-- Chat Section -->
@@ -45,7 +305,14 @@
             <div class="container" id="chatContainer">
                 <div class="header">
                     <div class="header-left">
-                        <div class="back-button">‹</div>
+                        <svg fill="rgb(10, 132, 255)" width="24px" height="24px" viewBox="0 0 52 52" data-name="Layer 1" id="Layer_1" xmlns="http://www.w3.org/2000/svg">
+                            <g data-name="Group 132" id="Group_132">
+                                <path d="M38,52a2,2,0,0,1-1.41-.59l-24-24a2,2,0,0,1,0-2.82l24-24a2,2,0,0,1,2.82,0,2,2,0,0,1,0,2.82L16.83,26,39.41,48.59A2,2,0,0,1,38,52Z"/>
+                            </g>
+                        </svg>
+                    </div>
+                    <div id="backButtonContextMenu" class="context-menu">
+                        <button id="savePosition">Save Position</button>
                     </div>
                     <div class="header-center">
                         <div class="profile-image" id="profileImageContainer">
@@ -57,6 +324,12 @@
                         </div>
                     </div>
                     <div class="header-right">
+                        <button class="video-call-icon">
+                            <svg viewBox="0 0 50 50" xmlns="http://www.w3.org/2000/svg">
+                                <path d="M36,36c0,2.209-1.791,4-4,4H5c-2.209,0-4-1.791-4-4V14c0-2.209,1.791-4,4-4h27c2.209,0,4,1.791,4,4V36z"/>
+                                <polygon points="49,14 36,21 36,29 49,36"/>
+                            </svg>
+                        </button>
                     </div>
                 </div>
                 <div class="message-container" id="messageContainer">
@@ -91,6 +364,7 @@
                     <h3>Choose Voice Actors</h3>
                     <div class="api-key-section">
                         <input type="text" id="elevenLabsKey" placeholder="Enter ElevenLabs API Key" class="api-key-input">
+                        <button id="saveApiKey">Save API Key</button>
                     </div>
                     <div class="voice-selector-container">
                         <div class="voice-selector">
@@ -168,7 +442,7 @@
                         </div>
                         <div class="video-option">
                             <video 
-                                src="https://res.cloudinary.com/dicyxkb4t/video/upload/v1738448705/y4k8pbdv6gwi06fo3feg.mp4" 
+                                src="https://res.cloudinary.com/dokndhglh/video/upload/v1739599641/Minecraft_Jump_and_Run_Gameplay_TIKTOK_Format_60fps_1440p_HD_No_Ads_No_Credits_3_-_Minecraft_Gameplay_1080p_h264_mute_youtube_online-video-cutter.com_1_eprmyf.mp4" 
                                 loop 
                                 muted 
                                 class="preview-video"
@@ -183,41 +457,100 @@
             </div>
         </div>
 
-        <!-- Add this after the chat-section div -->
-        <div class="steps-guide">
-            <h2>How to Use</h2>
-            <div class="step">
-                <div class="step-number">1</div>
-                <p>Type your message in the input box and press Enter or click Send</p>
+        <!-- Image Search Section -->
+        <div class="image-search-section">
+            <h3>Image Search</h3>
+            <div class="search-box">
+                <input type="text" id="imageSearchInput" placeholder="Search for images...">
+                <button onclick="searchImages(true)">🔍</button>
             </div>
-            <div class="step">
-                <div class="step-number">2</div>
-                <p>Click on any message to edit, add sound effects, or manage message options</p>
+            <div class="image-results" id="imageResults">
+                <!-- Image results will be added here -->
             </div>
-            <div class="step">
-                <div class="step-number">3</div>
-                <p>Click on profile image to upload your own profile image. Click on header name to edit your name.</p>
-            </div>
-            <div class="step">
-                <div class="step-number">4</div>
-                <p>Enter your ElevenLabs API key and click "Fetch Voices" to set up voice actors</p>
-            </div>
-            <div class="step">
-                <div class="step-number">5</div>
-                <p>Select voice actors for both sender and receiver</p>
-            </div>
-            <div class="step">
-                <div class="step-number">6</div>
-                <p>Choose your preferred background video style</p>
-            </div>
-            <div class="step">
-                <div class="step-number">7</div>
-                <p>Click "Generate Video" to create your text message video</p>
-            </div>
+            <div class="loading-indicator" id="loadingIndicator">Loading...</div>
+            <button class="load-more" id="loadMoreBtn" onclick="loadMoreImages()">Load More Images</button>
         </div>
     </div>
 
     <script>
+        function convertConversation() {
+            const input = document.getElementById('conversationInput').value;
+            const clipboardItems = document.getElementById('clipboardItems');
+            clipboardItems.innerHTML = ''; // Clear existing items
+            
+            // Split the input into lines and remove empty lines
+            const lines = input.split('\n').filter(line => line.trim());
+            
+            let currentSpeaker = '';
+            let currentMessage = '';
+            
+            lines.forEach(line => {
+                line = line.trim();
+                
+                // Check for speaker pattern (ends with colon)
+                if (line.includes(':')) {
+                    // If we have a previous message, add it
+                    if (currentSpeaker && currentMessage) {
+                        addClipboardItem(currentSpeaker, currentMessage);
+                    }
+                    
+                    // Split new line into speaker and message
+                    const [speaker, ...messageParts] = line.split(':');
+                    currentSpeaker = speaker.replace(/\*\*/g, '').trim();
+                    currentMessage = messageParts.join(':').trim();
+                    
+                    // If we have both speaker and message, add it
+                    if (currentSpeaker && currentMessage) {
+                        addClipboardItem(currentSpeaker, currentMessage);
+                        currentSpeaker = '';
+                        currentMessage = '';
+                    }
+                } else {
+                    // If line doesn't contain colon, it's probably a continuation of previous message
+                    if (currentSpeaker) {
+                        currentMessage += ' ' + line;
+                    }
+                }
+            });
+            
+            // Add any remaining message
+            if (currentSpeaker && currentMessage) {
+                addClipboardItem(currentSpeaker, currentMessage);
+            }
+        }
+
+        function addClipboardItem(speaker, message) {
+            const clipboardItems = document.getElementById('clipboardItems');
+            const itemDiv = document.createElement('div');
+            itemDiv.className = 'clipboard-item';
+            itemDiv.innerHTML = `
+                <div class="clipboard-text">
+                    <div class="speaker-name">${speaker}:</div>
+                    ${message}
+                </div>
+                <button class="copy-btn" onclick="copyText(this)">Copy</button>
+            `;
+            clipboardItems.appendChild(itemDiv);
+        }
+
+        function copyText(button) {
+            const textElement = button.previousElementSibling;
+            const speakerName = textElement.querySelector('.speaker-name').textContent;
+            const messageText = textElement.textContent.replace(speakerName, '').trim();
+            
+            navigator.clipboard.writeText(messageText).then(() => {
+                button.textContent = 'Copied!';
+                button.classList.add('copied');
+                
+                setTimeout(() => {
+                    button.textContent = 'Copy';
+                    button.classList.remove('copied');
+                }, 2000);
+            }).catch(err => {
+                console.error('Failed to copy text:', err);
+            });
+        }
+
         let messages = [];
         let isSender = true;
         let isGenerating = false;
@@ -368,7 +701,27 @@
             }
         });
 
-        // Update the generateBtn click handler to properly include theme information
+        // Add this near the beginning of your script section
+        document.addEventListener('DOMContentLoaded', () => {
+            // Load saved API key
+            const savedApiKey = localStorage.getItem('elevenLabsApiKey');
+            if (savedApiKey) {
+                document.getElementById('elevenLabsKey').value = savedApiKey;
+            }
+
+            // Add save button functionality
+            document.getElementById('saveApiKey').addEventListener('click', () => {
+                const apiKey = document.getElementById('elevenLabsKey').value.trim();
+                if (apiKey) {
+                    localStorage.setItem('elevenLabsApiKey', apiKey);
+                    alert('API Key saved successfully!');
+                } else {
+                    alert('Please enter an API key');
+                }
+            });
+        });
+
+        // Update the generateBtn click handler to use the saved API key
         generateBtn.addEventListener('click', async () => {
             if (isGenerating) return;
             isGenerating = true;
@@ -380,15 +733,19 @@
                 const currentProfileImage = document.getElementById('profileImage').src;
                 const currentHeaderName = document.getElementById('headerName').textContent.trim();
                 const currentTheme = document.querySelector('input[name="theme"]:checked').value;
+                const savedApiKey = localStorage.getItem('elevenLabsApiKey');
+                
+                if (!savedApiKey) {
+                    throw new Error('Please save your ElevenLabs API key first');
+                }
                 
                 const requestData = {
                     messages: messages,
                     profileImage: currentProfileImage,
                     headerName: currentHeaderName,
-                    theme: currentTheme,  // This ensures the theme choice is sent to app.py
+                    theme: currentTheme,
                     voiceSettings: {
-                        apiKey: document.getElementById('elevenLabsKey').value,
-                        voiceMap: voiceMap,
+                        apiKey: savedApiKey,
                         sender: document.getElementById('senderVoice').value,
                         receiver: document.getElementById('receiverVoice').value
                     },
@@ -716,6 +1073,215 @@
 
         // Always use default profile picture on page load
         profileImage.src = "{{ url_for('static', filename='images/profile.jpg') }}";
+
+        let currentPage = 1;
+        let currentQuery = '';
+        let isSearching = false;
+
+        async function searchImages(newSearch = false) {
+            const query = document.getElementById('imageSearchInput').value.trim();
+            if (!query) return;
+            
+            if (newSearch) {
+                currentPage = 1;
+                document.getElementById('imageResults').innerHTML = '';
+            }
+            
+            if (isSearching) return;
+            isSearching = true;
+            currentQuery = query;
+            
+            const loadingIndicator = document.getElementById('loadingIndicator');
+            const loadMoreBtn = document.getElementById('loadMoreBtn');
+            loadingIndicator.style.display = 'block';
+            loadMoreBtn.style.display = 'none';
+
+            try {
+                const response = await fetch(`/api/search-images?q=${encodeURIComponent(query)}&page=${currentPage}`);
+                const data = await response.json();
+
+                if (data.error) {
+                    document.getElementById('imageResults').innerHTML = `Error: ${data.error}`;
+                    return;
+                }
+
+                const resultsContainer = document.getElementById('imageResults');
+                
+                data.images.forEach(image => {
+                    const div = document.createElement('div');
+                    div.className = 'image-result';
+                    div.innerHTML = `
+                        <img src="${image.thumbnail}" alt="${image.title}">
+                        <div class="image-buttons">
+                            <button onclick="setAsProfile('${image.url}')">Set Profile</button>
+                            <button onclick="addImageToChat('${image.url}')">Add to Chat</button>
+                        </div>
+                    `;
+                    resultsContainer.appendChild(div);
+                });
+
+                // Show/hide load more button based on whether there are more results
+                loadMoreBtn.style.display = data.hasMore ? 'block' : 'none';
+                
+            } catch (error) {
+                document.getElementById('imageResults').innerHTML = 'Error searching for images';
+                console.error('Error:', error);
+            } finally {
+                isSearching = false;
+                loadingIndicator.style.display = 'none';
+            }
+        }
+
+        function setAsProfile(imageUrl) {
+            const profileImage = document.getElementById('profileImage');
+            profileImage.src = imageUrl;
+        }
+
+        function loadMoreImages() {
+            currentPage++;
+            searchImages(false);
+        }
+
+        // Add enter key support for search
+        document.getElementById('imageSearchInput').addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                searchImages(true);
+            }
+        });
+
+        // Add infinite scroll
+        const imageResults = document.getElementById('imageResults');
+        imageResults.addEventListener('scroll', () => {
+            const { scrollTop, scrollHeight, clientHeight } = imageResults;
+            if (scrollTop + clientHeight >= scrollHeight - 100 && !isSearching) {
+                loadMoreImages();
+            }
+        });
+
+        function addImageToChat(imageUrl) {
+            addPictureMessage(imageUrl);
+        }
+
+        // Add dragging functionality for back button
+        document.addEventListener('DOMContentLoaded', function() {
+            const backButton = document.querySelector('.header-left');
+            const contextMenu = document.getElementById('backButtonContextMenu');
+            const savePositionBtn = document.getElementById('savePosition');
+            let isDragging = false;
+            let currentX;
+            let currentY;
+            let initialX;
+            let initialY;
+
+            // Load saved position
+            const savedPosition = localStorage.getItem('backButtonPosition');
+            if (savedPosition) {
+                const { left, top } = JSON.parse(savedPosition);
+                backButton.style.left = left;
+                backButton.style.top = top;
+            }
+
+            // Prevent default context menu and show custom menu
+            backButton.addEventListener('contextmenu', function(e) {
+                e.preventDefault();
+                contextMenu.style.display = 'block';
+                contextMenu.style.left = e.pageX + 'px';
+                contextMenu.style.top = e.pageY + 'px';
+            });
+
+            // Save position button click handler
+            savePositionBtn.addEventListener('click', function() {
+                const position = {
+                    left: backButton.style.left,
+                    top: backButton.style.top
+                };
+                localStorage.setItem('backButtonPosition', JSON.stringify(position));
+                contextMenu.style.display = 'none';
+                
+                // Show confirmation message
+                const toast = document.createElement('div');
+                toast.style.position = 'fixed';
+                toast.style.bottom = '20px';
+                toast.style.left = '50%';
+                toast.style.transform = 'translateX(-50%)';
+                toast.style.background = '#28a745';
+                toast.style.color = 'white';
+                toast.style.padding = '10px 20px';
+                toast.style.borderRadius = '4px';
+                toast.style.zIndex = '1002';
+                toast.textContent = 'Position saved!';
+                document.body.appendChild(toast);
+                
+                setTimeout(() => {
+                    toast.remove();
+                }, 2000);
+            });
+
+            // Hide context menu when clicking outside
+            document.addEventListener('click', function(e) {
+                if (!contextMenu.contains(e.target) && !backButton.contains(e.target)) {
+                    contextMenu.style.display = 'none';
+                }
+            });
+
+            // Dragging functionality
+            backButton.addEventListener('mousedown', dragStart);
+            document.addEventListener('mousemove', drag);
+            document.addEventListener('mouseup', dragEnd);
+
+            function dragStart(e) {
+                if (e.button === 2) return; // Don't start drag on right click
+                initialX = e.clientX - backButton.offsetLeft;
+                initialY = e.clientY - backButton.offsetTop;
+                isDragging = true;
+            }
+
+            function drag(e) {
+                if (!isDragging) return;
+
+                e.preventDefault();
+                currentX = e.clientX - initialX;
+                currentY = e.clientY - initialY;
+
+                // Keep button within window bounds
+                currentX = Math.max(0, Math.min(currentX, window.innerWidth - backButton.offsetWidth));
+                currentY = Math.max(0, Math.min(currentY, window.innerHeight - backButton.offsetHeight));
+
+                backButton.style.left = currentX + 'px';
+                backButton.style.top = currentY + 'px';
+            }
+
+            function dragEnd() {
+                isDragging = false;
+            }
+
+            // Add touch support
+            backButton.addEventListener('touchstart', function(e) {
+                const touch = e.touches[0];
+                initialX = touch.clientX - backButton.offsetLeft;
+                initialY = touch.clientY - backButton.offsetTop;
+                isDragging = true;
+            });
+
+            document.addEventListener('touchmove', function(e) {
+                if (!isDragging) return;
+
+                e.preventDefault();
+                const touch = e.touches[0];
+                currentX = touch.clientX - initialX;
+                currentY = touch.clientY - initialY;
+
+                currentX = Math.max(0, Math.min(currentX, window.innerWidth - backButton.offsetWidth));
+                currentY = Math.max(0, Math.min(currentY, window.innerHeight - backButton.offsetHeight));
+
+                backButton.style.left = currentX + 'px';
+                backButton.style.top = currentY + 'px';
+            });
+
+            document.addEventListener('touchend', function() {
+                isDragging = false;
+            });
+        });
     </script>
 </body>
 </html>

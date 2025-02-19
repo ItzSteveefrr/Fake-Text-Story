@@ -1,4 +1,4 @@
-from flask import Flask, request, jsonify, send_file, render_template
+from flask import Flask, request, jsonify, send_file, render_template, session
 from flask_cors import CORS
 from moviepy import VideoFileClip, ImageClip, CompositeVideoClip, concatenate_videoclips, CompositeAudioClip
 from moviepy.audio.io.AudioFileClip import AudioFileClip
@@ -12,7 +12,7 @@ from selenium.common.exceptions import TimeoutException
 import tempfile
 import time
 import os
-from PIL import Image, ImageFilter, ImageDraw
+from PIL import Image, ImageFilter, ImageDraw, ImageFont
 import io
 import numpy as np
 import requests
@@ -21,13 +21,19 @@ from googleapiclient.discovery import build
 from googleapiclient.http import MediaFileUpload
 import subprocess
 from datetime import datetime
-import json
+import json     
+import traceback
+import shutil
 
 app = Flask(__name__)
 CORS(app)
 
 # Global list to track temporary files for cleanup
 temp_files = []
+
+# Add these configuration variables at the top with your other constants
+GOOGLE_API_KEY = os.environ.get('GOOGLE_API_KEY')
+GOOGLE_CSE_ID = os.environ.get('GOOGLE_CSE_ID')
 
 VOICE_SETTINGS = {
     "stability": 0.75,
@@ -95,6 +101,52 @@ def upload_to_drive(file_path, file_name):
 def index():
     return render_template('index.html')
 
+def generate_default_profile_image(name, size=200):
+    """Generate a default profile image with the first letter of the name"""
+    try:
+        # Create a new image with a light blue background (iOS-like)
+        background_color = (0, 122, 255)  # iOS blue color
+        image = Image.new('RGB', (size, size), background_color)
+        draw = ImageDraw.Draw(image)
+        
+        # Get the first letter and make it uppercase
+        letter = name[0].upper() if name else '?'
+        
+        # Calculate font size (approximately half the image size)
+        font_size = int(size * 0.5)
+        
+        # Create font object
+        try:
+            # Try to use a system font similar to iOS
+            font = ImageFont.truetype("arial.ttf", font_size)
+        except:
+            # Fallback to default font
+            font = ImageFont.load_default()
+            font_size = 50  # Adjust default font size
+        
+        # Calculate text size and position to center it
+        text_bbox = draw.textbbox((0, 0), letter, font=font)
+        text_width = text_bbox[2] - text_bbox[0]
+        text_height = text_bbox[3] - text_bbox[1]
+        x = (size - text_width) // 2
+        y = (size - text_height) // 2
+        
+        # Draw the letter in white
+        draw.text((x, y), letter, fill='white', font=font)
+        
+        # Convert to bytes
+        img_byte_array = io.BytesIO()
+        image.save(img_byte_array, format='PNG')
+        img_byte_array.seek(0)
+        
+        # Convert to base64
+        import base64
+        return f"data:image/png;base64,{base64.b64encode(img_byte_array.getvalue()).decode()}"
+        
+    except Exception as e:
+        print(f"Error generating default profile image: {e}")
+        return None
+
 def capture_chat_interface(messages, show_header=True, header_data=None):
     chrome_options = Options()
     chrome_options.add_argument('--headless')
@@ -120,10 +172,34 @@ def capture_chat_interface(messages, show_header=True, header_data=None):
             """)
             time.sleep(0.5)  # Wait for theme to apply
         
+        # Set back button position from localStorage
+        driver.execute_script("""
+            const backButton = document.querySelector('.header-left');
+            if (backButton) {
+                const savedPosition = localStorage.getItem('backButtonPosition');
+                if (savedPosition) {
+                    const position = JSON.parse(savedPosition);
+                    backButton.style.position = 'absolute';
+                    backButton.style.left = position.left;
+                    backButton.style.top = position.top;
+                    backButton.style.zIndex = '1000';
+                }
+            }
+        """)
+        time.sleep(0.5)  # Wait for position to apply
+        
         # Apply header data if provided
         if header_data:
-            # First, set the profile image
-            if header_data.get('profileImage'):
+            # Get profile image or generate default
+            profile_image = header_data.get('profileImage', '')
+            header_name = header_data.get('headerName', 'John Doe')
+            
+            if not profile_image or profile_image.endswith('profile.jpg'):
+                # Generate default profile image with first letter
+                profile_image = generate_default_profile_image(header_name)
+            
+            # Set the profile image
+            if profile_image:
                 driver.execute_script("""
                     const imgElement = document.getElementById('profileImage');
                     if (imgElement) {
@@ -134,26 +210,22 @@ def capture_chat_interface(messages, show_header=True, header_data=None):
                             imgElement.onerror = resolve;
                         });
                     }
-                """, header_data.get('profileImage', ''))
+                """, profile_image)
                 time.sleep(1)  # Wait for image to load
             
-            # Then, set the header name with forced DOM updates
-            if header_data.get('headerName'):
+            # Set the header name
+            if header_name:
                 driver.execute_script("""
                     const headerNameElement = document.getElementById('headerName');
                     if (headerNameElement) {
-                        // First, set the text content
                         headerNameElement.textContent = arguments[0];
-                        // Force style recalculation
                         headerNameElement.offsetHeight;
-                        // Force DOM update by toggling visibility
                         headerNameElement.style.display = 'none';
                         headerNameElement.offsetHeight;
                         headerNameElement.style.display = '';
-                        // Force another style recalculation
                         headerNameElement.offsetHeight;
                     }
-                """, header_data.get('headerName', 'John Doe'))
+                """, header_name)
                 time.sleep(0.5)  # Wait for name to update
         
         # Set transparent background
@@ -256,10 +328,10 @@ def capture_chat_interface(messages, show_header=True, header_data=None):
         driver.quit()
 
 def generate_audio_eleven_labs(text, voice_id, api_key):
-    """Generate audio using ElevenLabs API"""
+    """Generate audio using ElevenLabs API with retry mechanism"""
     print(f"\nGenerating audio for voice_id: {voice_id}")
     
-    url = f"https://api.elevenlabs.io/v1/text-to-speech/{voice_id}"  # Changed to v1
+    url = f"https://api.elevenlabs.io/v1/text-to-speech/{voice_id}"
     
     headers = {
         "Accept": "audio/mpeg",
@@ -273,18 +345,42 @@ def generate_audio_eleven_labs(text, voice_id, api_key):
         "voice_settings": VOICE_SETTINGS
     }
     
-    print("Making API request...")
-    response = requests.post(url, json=data, headers=headers)
+    max_retries = 5
+    base_delay = 3  # Start with 3 seconds delay
     
-    if response.status_code == 200:
-        temp_audio = tempfile.NamedTemporaryFile(suffix='.mp3', delete=False)
-        temp_files.append(temp_audio.name)
-        temp_audio.write(response.content)
-        temp_audio.close()
-        return temp_audio.name
-    else:
-        print(f"Error response: {response.text}")
-        raise Exception(f"ElevenLabs API error: {response.text}")
+    for attempt in range(max_retries):
+        try:
+            print(f"Making API request (attempt {attempt + 1}/{max_retries})...")
+            response = requests.post(url, json=data, headers=headers)
+            
+            if response.status_code == 200:
+                temp_audio = tempfile.NamedTemporaryFile(suffix='.mp3', delete=False)
+                temp_files.append(temp_audio.name)
+                temp_audio.write(response.content)
+                temp_audio.close()
+                return temp_audio.name
+            
+            # If system is busy, implement exponential backoff
+            if response.status_code == 429 or "system_busy" in response.text:
+                if attempt < max_retries - 1:  # Don't sleep on the last attempt
+                    delay = base_delay * (2 ** attempt)  # Exponential backoff
+                    print(f"System busy. Retrying in {delay} seconds...")
+                    time.sleep(delay)
+                    continue
+            
+            # For other errors, raise exception immediately
+            print(f"Error response: {response.text}")
+            raise Exception(f"ElevenLabs API error: {response.text}")
+            
+        except requests.exceptions.RequestException as e:
+            if attempt < max_retries - 1:
+                delay = base_delay * (2 ** attempt)
+                print(f"Network error. Retrying in {delay} seconds...")
+                time.sleep(delay)
+                continue
+            raise Exception(f"Network error after {max_retries} attempts: {str(e)}")
+    
+    raise Exception(f"Failed to generate audio after {max_retries} attempts. System may be too busy.")
 
 def get_voice_ids(api_key):
     try:
@@ -394,14 +490,14 @@ def generate_video(messages, header_data):
         
         print(f"Using voice IDs - Sender: {sender_voice_id}, Receiver: {receiver_voice_id}")
         
-        # Cloudinary video URLs (replace with your actual URLs)
+        # Cloudinary video URLs (updated with working URLs)
         CLOUDINARY_VIDEOS = {
-                'background': 'https://res.cloudinary.com/dokndhglh/video/upload/c_scale,h_1080,q_100/v1739342327/h3mqdaupaop1eprdcld3.mp4',
-                'background_1': 'https://res.cloudinary.com/dokndhglh/video/upload/c_scale,h_1080,q_100/v1739342660/f1bhluhc6si77uapdawe_slowed_oq2v20.mp4',
-                'background_2': 'https://res.cloudinary.com/dokndhglh/video/upload/c_scale,h_1080,q_100/v1739343309/dxo2rlb7kckps0fnfvv4_slowed_mmptbq.mp4',
-                'background_3': 'https://res.cloudinary.com/dokndhglh/video/upload/c_scale,h_1080,q_100/v1739343390/pytgss2oi9idgch1xhrw_slowed_ku8hde.mp4',
-                'background_4': 'https://res.cloudinary.com/dokndhglh/video/upload/c_scale,h_1080,q_100/v1739343443/y4k8pbdv6gwi06fo3feg_slowed_jkbyyz.mp4'
-            }
+            'background': 'https://res.cloudinary.com/dokndhglh/video/upload/c_scale,h_1080,q_100/v1739342327/h3mqdaupaop1eprdcld3.mp4',
+            'background_1': 'https://res.cloudinary.com/dokndhglh/video/upload/c_scale,h_1080,q_100/v1739342660/f1bhluhc6si77uapdawe_slowed_oq2v20.mp4',
+            'background_2': 'https://res.cloudinary.com/dokndhglh/video/upload/c_scale,h_1080,q_100/v1739343309/dxo2rlb7kckps0fnfvv4_slowed_mmptbq.mp4',
+            'background_3': 'https://res.cloudinary.com/dokndhglh/video/upload/c_scale,h_1080,q_100/v1739343390/pytgss2oi9idgch1xhrw_slowed_ku8hde.mp4',
+            'background_4': 'https://res.cloudinary.com/dokndhglh/video/upload/v1739599641/Minecraft_Jump_and_Run_Gameplay_TIKTOK_Format_60fps_1440p_HD_No_Ads_No_Credits_3_-_Minecraft_Gameplay_1080p_h264_mute_youtube_online-video-cutter.com_1_eprmyf.mp4'
+        }
         
         # Get the selected background video
         selected_bg = header_data.get('backgroundVideo', 'background')
@@ -410,38 +506,85 @@ def generate_video(messages, header_data):
         if not bg_url:
             raise ValueError(f"Invalid background video: {selected_bg}")
 
-        # Download the video using requests with retry logic to properly handle chunked download errors
+        print(f"Downloading background video from: {bg_url}")
+        
+        # Download the video using requests with retry logic
         with tempfile.NamedTemporaryFile(suffix='.mp4', delete=False) as temp_video:
             headers = {
-                'User-Agent': 'Mozilla/5.0',     # Mimic a typical browser
-                'Connection': 'keep-alive'
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
             }
+            
             # Attempt the download up to 3 times
-            for attempt in range(3):
+            max_retries = 3
+            for attempt in range(max_retries):
                 try:
                     response = requests.get(bg_url, stream=True, headers=headers, timeout=30)
-                    if response.status_code != 200:
-                        raise Exception(f"Failed to download video from Cloudinary: {response.status_code}")
-                    response.raw.decode_content = True  # Ensure decompression is handled
-                    for chunk in response.iter_content(chunk_size=8192):
-                        if chunk:  # Filter out keep-alive chunks
+                    response.raise_for_status()
+                    
+                    total_size = int(response.headers.get('content-length', 0))
+                    block_size = 8192
+                    downloaded = 0
+                    
+                    for chunk in response.iter_content(chunk_size=block_size):
+                        if chunk:
+                            downloaded += len(chunk)
                             temp_video.write(chunk)
-                    print("Download succeeded")
-                    break  # Exit the retry loop upon success
-                except requests.exceptions.ChunkedEncodingError as e:
-                    print(f"Attempt {attempt + 1}: ChunkedEncodingError encountered: {e}")
-                    if attempt < 2:
-                        print("Retrying download...")
-                        time.sleep(5)  # Wait a little before retrying
-                    else:
-                        raise Exception("Failed to download video after multiple attempts due to ChunkedEncodingError")
+                            if total_size > 0:
+                                percent = (downloaded / total_size) * 100
+                                print(f"\rDownloading background video: {percent:.1f}%", end='')
+                    
+                    print("\nDownload completed successfully")
+                    break
+                except requests.exceptions.RequestException as e:
+                    print(f"Attempt {attempt + 1} failed: {str(e)}")
+                    if attempt == max_retries - 1:
+                        raise Exception(f"Failed to download video after {max_retries} attempts: {str(e)}")
+                    print("Retrying download...")
+                    time.sleep(5)
+            
             temp_video_path = temp_video.name
             temp_files.append(temp_video_path)
 
+        # Load the background video and get its duration
         background = VideoFileClip(temp_video_path, audio=False)
         
+        # Calculate total duration needed for all messages
         video_clips = []
         audio_clips = []
+        total_duration = 0
+        
+        # First pass to calculate total duration needed
+        for i in range(0, len(messages), 5):
+            sequence = messages[i:i+5]
+            for j in range(len(sequence)):
+                msg = sequence[j]
+                if msg.get('type') == 'text':
+                    # Estimate audio duration
+                    voice_id = sender_voice_id if msg['is_sender'] else receiver_voice_id
+                    audio_path = generate_audio_eleven_labs(msg['text'], voice_id, api_key)
+                    voice_audio = AudioFileClip(audio_path)
+                    
+                    if msg.get('soundEffect') and msg['soundEffect'] in SOUND_EFFECTS:
+                        effect_audio = AudioFileClip(SOUND_EFFECTS[msg['soundEffect']])
+                        clip_duration = max(voice_audio.duration + 0.1, effect_audio.duration)
+                    else:
+                        clip_duration = voice_audio.duration
+                        
+                    total_duration += clip_duration + 0.09
+                else:  # Picture message
+                    if msg.get('soundEffect') and msg['soundEffect'] in SOUND_EFFECTS:
+                        effect_audio = AudioFileClip(SOUND_EFFECTS[msg['soundEffect']])
+                        total_duration += effect_audio.duration + 0.04
+                    else:
+                        total_duration += 0.54  # Default duration for picture messages
+
+        # Choose a random start point that ensures we have enough video duration
+        max_start_time = max(0, background.duration - total_duration - 1)  # -1 for safety margin
+        if max_start_time > 0:
+            start_time = np.random.uniform(0, max_start_time)
+            print(f"\nChose random start time: {start_time:.2f} seconds")
+            background = background.subclip(start_time)
+        
         current_time = 0
         message_count = 0
 
@@ -560,7 +703,6 @@ def generate_video(messages, header_data):
         
     except Exception as e:
         print(f"Error generating video: {str(e)}")
-        import traceback
         traceback.print_exc()
         raise
 
@@ -587,39 +729,46 @@ def log_video_info(video_path):
     except Exception as e:
         print(f"Error logging video info: {e}")
 
+@app.route('/api/validate-key', methods=['POST'])
+def validate_key():
+    try:
+        data = request.json
+        api_key = data.get('apiKey')
+        
+        if not api_key:
+            return jsonify({'error': 'API key is required'}), 400
+            
+        # Test the API key with ElevenLabs
+        response = requests.get(
+            "https://api.elevenlabs.io/v1/voices",
+            headers={"xi-api-key": api_key}
+        )
+        
+        if response.status_code != 200:
+            return jsonify({'error': 'Invalid API key'}), 401
+            
+        return jsonify({'status': 'success', 'message': 'API key is valid'})
+        
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
 @app.route('/api/generate', methods=['POST'])
 def generate_endpoint():
     try:
-        # Get current timestamp and user info
-        current_time = datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')
-        print(f"Current Date and Time (UTC): {current_time}")
-        print(f"Current User's Login: ItzSteveefr")
-
         data = request.json
-        print("Received data:", data)  # Debug log
         messages = data['messages']
         
-        # Validate voice settings
+        # Get voice settings and validate API key
         voice_settings = data.get('voiceSettings', {})
-        if not voice_settings.get('apiKey'):
+        api_key = voice_settings.get('apiKey')
+        
+        if not api_key:
             return jsonify({
                 'status': 'error',
                 'error': 'ElevenLabs API key is required'
             }), 400
         
-        if not voice_settings.get('sender') or not voice_settings.get('receiver'):
-            return jsonify({
-                'status': 'error',
-                'error': 'Voice settings must include sender and receiver voice types'
-            }), 400
-        
-        # Debug log for messages and sound effects
-        print("Processing messages in generate_endpoint:")
-        for msg in messages:
-            print(f"Message: {msg.get('text', 'NO TEXT')} | "
-                  f"Sender: {msg.get('is_sender', 'NO SENDER')} | "
-                  f"Sound Effect: {msg.get('soundEffect', 'NONE')}")
-        
+        # Create header_data dictionary
         header_data = {
             'profileImage': data.get('profileImage', ''),
             'headerName': data.get('headerName', 'John Doe'),
@@ -633,27 +782,46 @@ def generate_endpoint():
         video_path = generate_video(messages, header_data)
         log_video_info(video_path)
         
+        # Enhance video quality using AI
+        print("\nEnhancing video quality with AI...")
+        enhanced_video_path = "enhanced_" + os.path.basename(video_path)
+        if enhance_video_quality(video_path, enhanced_video_path):
+            print("Using AI-enhanced video for further processing")
+            # Replace original video with enhanced version
+            shutil.move(enhanced_video_path, video_path)
+        else:
+            print("Warning: AI enhancement failed, using original video")
+        
         # Upload original video to Google Drive
-        print("\nUploading original video to Google Drive...")
+        print("\nUploading enhanced video to Google Drive...")
         drive_result = upload_to_drive(video_path, 'output_video.mp4')
         
         # Initialize response data
         response_data = {
             'status': 'success',
-            'message': 'Video generated and processed successfully',
+            'message': 'Video generated, enhanced, and processed successfully',
             'original_video_id': drive_result.get('id', ''),
             'original_video_link': f"https://drive.google.com/file/d/{drive_result.get('id', '')}/view?usp=drivesdk",
             'spedup_video_id': '',
             'spedup_video_link': ''
         }
 
-        # Run the speed-up script and handle Discord webhook
+        # Run the speed-up script
         try:
             print("\nStarting video speed-up process...")
             subprocess.run(['python', 'speed_up_video.py'], check=True)
             
             if os.path.exists('spedup_outputvideo.mp4'):
-                print("\nUploading sped-up video to Google Drive...")
+                # Enhance the sped-up video as well
+                print("\nEnhancing sped-up video quality with AI...")
+                enhanced_spedup_path = "enhanced_spedup_outputvideo.mp4"
+                if enhance_video_quality('spedup_outputvideo.mp4', enhanced_spedup_path):
+                    print("Using AI-enhanced sped-up video")
+                    shutil.move(enhanced_spedup_path, 'spedup_outputvideo.mp4')
+                else:
+                    print("Warning: AI enhancement of sped-up video failed, using original")
+                
+                print("\nUploading enhanced sped-up video to Google Drive...")
                 spedup_drive_result = upload_to_drive('spedup_outputvideo.mp4', 'spedup_outputvideo.mp4')
                 
                 response_data.update({
@@ -661,38 +829,23 @@ def generate_endpoint():
                     'spedup_video_link': f"https://drive.google.com/file/d/{spedup_drive_result.get('id', '')}/view?usp=drivesdk"
                 })
                 
-                print(f"Sped-up video uploaded to Google Drive - Link: {response_data['spedup_video_link']}")
-                print(f"Sped-up Video ID: {response_data['spedup_video_id']}")
-
                 # Handle Discord webhook if URL is provided
                 discord_webhook_url = os.environ.get('DISCORD_WEBHOOK_URL')
                 if discord_webhook_url:
                     try:
-                        # Send original video
-                        with open(video_path, 'rb') as video_file:
-                            webhook_data = {
-                                'content': f"New video generated by {header_data['headerName']}\nOriginal video"
-                            }
-                            if drive_result:
-                                webhook_data['content'] += f"\nGoogle Drive Link: {drive_result['link']}"
-                            
-                            files = {
-                                'file': ('output_video.mp4', video_file, 'video/mp4')
-                            }
-                            requests.post(discord_webhook_url, data=webhook_data, files=files)
+                        # Send original video link
+                        webhook_data = {
+                            'content': f"🎥 **New video generated by {header_data['headerName']}**\n\n" \
+                                     f"📝 **Original Video**\n" \
+                                     f"🔗 Drive Link: {drive_result['link']}\n\n" \
+                                     f"⏱️ **Sped-up Version (1.75x)**\n" \
+                                     f"🔗 Drive Link: {spedup_drive_result['link']}"
+                        }
                         
-                        # Send sped-up video
-                        with open('spedup_outputvideo.mp4', 'rb') as spedup_file:
-                            webhook_data = {
-                                'content': f"Sped-up version (1.75x) of video by {header_data['headerName']}"
-                            }
-                            if spedup_drive_result:
-                                webhook_data['content'] += f"\nGoogle Drive Link: {spedup_drive_result['link']}"
+                        response = requests.post(discord_webhook_url, json=webhook_data)
+                        if response.status_code != 204:
+                            print(f"Warning: Discord webhook returned status code {response.status_code}")
                             
-                            files = {
-                                'file': ('spedup_outputvideo.mp4', spedup_file, 'video/mp4')
-                            }
-                            requests.post(discord_webhook_url, data=webhook_data, files=files)
                     except Exception as webhook_error:
                         print(f"Warning: Error sending to Discord webhook: {str(webhook_error)}")
                 
@@ -708,7 +861,7 @@ def generate_endpoint():
                     
         except Exception as e:
             print(f"Error in speed-up process: {str(e)}")
-            response_data['message'] = f"Video generated but speed-up failed: {str(e)}"
+            response_data['message'] = f"Video generated and enhanced but speed-up failed: {str(e)}"
 
         print("\nProcess completed successfully!")
         return jsonify(response_data)
@@ -746,6 +899,130 @@ def fetch_voices():
         
     except Exception as e:
         return jsonify({'error': str(e)}), 500
+
+@app.route('/api/search-images')
+def search_images():
+    try:
+        query = request.args.get('q')
+        page = request.args.get('page', '1')  # Get page number, default to 1
+        
+        if not query:
+            return jsonify({'error': 'Query parameter is required'}), 400
+
+        if not GOOGLE_API_KEY or not GOOGLE_CSE_ID:
+            return jsonify({'error': 'Google API configuration is missing'}), 500
+
+        # Calculate start index for pagination (1, 11, 21, etc.)
+        # Google CSE allows max 10 results per request
+        start_index = (int(page) - 1) * 10 + 1
+
+        # Make request to Google Custom Search API
+        url = 'https://www.googleapis.com/customsearch/v1'
+        params = {
+            'key': GOOGLE_API_KEY,
+            'cx': GOOGLE_CSE_ID,
+            'q': query,
+            'searchType': 'image',
+            'num': 10,  # Maximum allowed by Google CSE
+            'start': start_index,
+            'imgSize': 'medium',  # Get medium sized images
+            'safe': 'active'  # Safe search setting
+        }
+
+        response = requests.get(url, params=params)
+        data = response.json()
+
+        if 'items' not in data:
+            return jsonify({'error': 'No images found'}), 404
+
+        # Extract relevant image information
+        images = [{
+            'url': item['link'],
+            'title': item['title'],
+            'thumbnail': item.get('image', {}).get('thumbnailLink', item['link']),
+            'context': item.get('image', {}).get('contextLink', ''),  # Add source context
+            'height': item.get('image', {}).get('height', ''),
+            'width': item.get('image', {}).get('width', '')
+        } for item in data['items']]
+
+        # Add pagination info
+        response_data = {
+            'images': images,
+            'currentPage': int(page),
+            'hasMore': 'queries' in data and 'nextPage' in data['queries'],
+            'totalResults': min(int(data.get('searchInformation', {}).get('totalResults', 0)), 100)  # Google CSE limits to 100
+        }
+
+        return jsonify(response_data)
+
+    except Exception as e:
+        print(f"Error in image search: {str(e)}")
+        return jsonify({'error': 'Failed to search images'}), 500
+
+def enhance_video_quality(input_path, output_path):
+    """Optimize video quality while maintaining clarity and sharpness"""
+    try:
+        print("\nOptimizing video quality...")
+        
+        # Extract video info
+        probe_cmd = [
+            'ffprobe',
+            '-v', 'error',
+            '-select_streams', 'v:0',
+            '-show_entries', 'stream=width,height,r_frame_rate',
+            '-of', 'json',
+            input_path
+        ]
+        
+        probe_result = subprocess.run(probe_cmd, capture_output=True, text=True)
+        video_info = json.loads(probe_result.stdout)
+        
+        # Calculate target resolution (1080p)
+        target_height = 1080
+        current_height = int(video_info['streams'][0]['height'])
+        scale_factor = target_height / current_height
+        
+        # Calculate target width and ensure it's even
+        raw_target_width = int(int(video_info['streams'][0]['width']) * scale_factor)
+        target_width = raw_target_width + (raw_target_width % 2)  # Make sure width is even
+        
+        print(f"Processing video to {target_width}x{target_height}")
+        
+        # Simple, high-quality scaling without aggressive filters
+        complex_filter = (
+            f"scale={target_width}:{target_height}:flags=lanczos"
+        )
+        
+        # High quality encoding settings focused on preserving quality
+        enhance_cmd = [
+            'ffmpeg',
+            '-i', input_path,
+            '-vf', complex_filter,
+            '-c:v', 'libx264',
+            '-preset', 'medium',     # Balance between quality and speed
+            '-crf', '18',           # High quality, visually lossless
+            '-maxrate', '15M',
+            '-bufsize', '15M',
+            '-profile:v', 'high',
+            '-level', '4.1',
+            '-movflags', '+faststart',
+            '-c:a', 'aac',
+            '-b:a', '256k',
+            '-ar', '48000',
+            '-y',
+            output_path
+        ]
+        
+        print("\nProcessing video with optimized settings...")
+        subprocess.run(enhance_cmd, check=True)
+        
+        print("Video processing completed successfully!")
+        return True
+        
+    except Exception as e:
+        print(f"Error during video processing: {str(e)}")
+        traceback.print_exc()
+        return False
 
 if __name__ == '__main__':
     # Run Flask on all interfaces with port 8080 for Google Cloud
